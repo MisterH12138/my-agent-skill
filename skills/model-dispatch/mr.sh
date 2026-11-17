@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Model Router launcher for macOS / Linux
+# Model Dispatch launcher for macOS / Linux
 # 用法: ./mr.sh health
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
