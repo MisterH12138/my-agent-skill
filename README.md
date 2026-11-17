@@ -9,6 +9,7 @@
 | 技能 | 版本 | 说明 |
 |---|---|---|
 | [model-dispatch](skills/model-dispatch/) | 1.1.0 | 跨平台智能模型调度：按任务类型、上下文长度、平台余额与免费额度，自动选最省且不降能力的模型并直接调用 |
+| [context-guardian](skills/context-guardian/) | 1.0.0 | 跨工具上下文健康检查：估算 token 占用、五级预警、给出可执行压缩建议 |
 
 ---
 
@@ -90,14 +91,61 @@ my-agent-skill/
 ├── README.md              # 本文件
 ├── .gitignore             # 忽略密钥与产物
 ├── skills/
-│   └── model-dispatch/    # 技能本体
-│       ├── SKILL.md       # Agent 读取的技能说明
-│       ├── README.md      # 人类阅读的详细文档
-│       ├── lib/           # 调度引擎与平台适配器
-│       ├── config/        # 配置
-│       └── scripts/       # 安装器
+│   ├── model-dispatch/    # 跨平台模型调度
+│   │   ├── SKILL.md       # Agent 读取的技能说明
+│   │   ├── README.md      # 人类阅读的详细文档
+│   │   ├── lib/           # 调度引擎与平台适配器
+│   │   ├── config/        # 配置
+│   │   └── scripts/       # 安装器
+│   └── context-guardian/  # 上下文健康检查
+│       ├── SKILL.md
+│       ├── lib/           # 估算器、分析器、工具适配层
+│       └── scripts/
 └── dist/                  # 发布产物（zip 包）
 ```
+
+---
+
+## context-guardian
+
+> 告诉你当前对话还能撑多久，以及在超限之前该做什么。
+
+**解决的问题**：长对话最怕的不是慢，是**突然被截断**——上下文塞满后，模型开始丢历史、答非所问，甚至直接报错中断。
+
+**核心能力**：
+
+- **五级预警**：健康(<50%) / 注意(50-70%) / 警告(70-85%) / 危险(85-95%) / 危急(≥95%)
+- **真实数据**：解析 DeepSeek Harness、Claude Code、Codex 的会话日志，不是估算空谈
+- **可执行建议**：按当前等级给出「删什么、怎么压、换哪个模型」
+- **30+ 模型窗口表**：covering DeepSeek / 千问 / OpenAI / Anthropic / Google 等
+
+**快速使用**：
+
+```bash
+node lib/cli.mjs check                          # 检查当前上下文健康度
+node lib/cli.mjs scan                           # 扫描本机所有会话占用
+node lib/cli.mjs estimate "一段文本"             # 估算 token 数
+node lib/cli.mjs check --tokens 95000 --model claude-sonnet-4
+```
+
+**实测输出**：
+
+```
+🟠 上下文健康度：警告（78.6%）
+
+  [███████████████████████░░░░░░░]
+
+  模型        : qwen3.8-flash
+  模型窗口    : 1,000,000 tokens
+  当前占用    : 780,000 tokens
+  剩余可用    : 211,808 tokens
+
+建议操作：
+  ! 要求 AI 先做小结再继续
+  ! 把大文件内容挪出对话
+```
+
+详细文档见 [skills/context-guardian/SKILL.md](skills/context-guardian/SKILL.md)。
 
 ---
 

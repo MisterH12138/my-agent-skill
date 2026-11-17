@@ -1,0 +1,31 @@
+{
+  "name": "@dsh-skills/context-guardian",
+  "version": "1.0.0",
+  "description": "跨工具上下文健康检查：估算 token 占用、分级预警、给出可执行的压缩建议。支持 Claude Code / Codex / DeepSeek Harness 等工具的真实会话数据。",
+  "type": "module",
+  "bin": {
+    "context-guardian": "lib/cli.mjs"
+  },
+  "files": [
+    "SKILL.md",
+    "lib/",
+    "scripts/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agent-skills",
+    "skill",
+    "context",
+    "token",
+    "llm",
+    "monitoring"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "skill": {
+    "name": "context-guardian",
+    "entry": "SKILL.md"
+  }
+}
