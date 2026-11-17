@@ -1,0 +1,14 @@
+{
+  "_comment": "自定义工具解析器注册表。任何 AI 工具的会话日志是 JSONL/JSON 格式时，在这里登记路径即可被读取。",
+  "_comment_dirs": "dirs 支持 ~ 展开为家目录",
+  "tools": [
+    {
+      "_example": true,
+      "id": "my-custom-tool",
+      "label": "我的自定义工具",
+      "dirs": ["~/.my-tool/sessions"],
+      "_note": "取消 enabled 或直接填写真实路径。文件会被通用 JSONL 解析器处理。",
+      "enabled": false
+    }
+  ]
+}

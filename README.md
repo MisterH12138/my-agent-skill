@@ -9,7 +9,7 @@
 | 技能 | 版本 | 说明 |
 |---|---|---|
 | [model-dispatch](skills/model-dispatch/) | 1.1.0 | 跨平台智能模型调度：按任务类型、上下文长度、平台余额与免费额度，自动选最省且不降能力的模型并直接调用 |
-| [context-guardian](skills/context-guardian/) | 1.0.0 | 跨工具上下文健康检查：估算 token 占用、五级预警、给出可执行压缩建议 |
+| [context-guardian](skills/context-guardian/) | 1.1.0 | 跨工具上下文健康检查 + 用户画像 + AI 记忆提炼 |
 
 ---
 
@@ -108,41 +108,48 @@ my-agent-skill/
 
 ## context-guardian
 
-> 告诉你当前对话还能撑多久，以及在超限之前该做什么。
+> 管好你 AI 对话的「空间」——还剩多少、你怎么用的、该记住什么。
 
-**解决的问题**：长对话最怕的不是慢，是**突然被截断**——上下文塞满后，模型开始丢历史、答非所问，甚至直接报错中断。
+**三大能力**：
 
-**核心能力**：
+| 能力 | 说明 | 命令 |
+|---|---|---|
+| **上下文健康检查** | 还剩多少、五级预警、怎么压缩 | `check` / `scan` |
+| **用户画像** | 6 维度统计你的使用习惯 | `profile` |
+| **记忆提炼** | 从历史中提炼跨会话有用的信息 | `memory build` |
 
-- **五级预警**：健康(<50%) / 注意(50-70%) / 警告(70-85%) / 危险(85-95%) / 危急(≥95%)
-- **真实数据**：解析 DeepSeek Harness、Claude Code、Codex 的会话日志，不是估算空谈
-- **可执行建议**：按当前等级给出「删什么、怎么压、换哪个模型」
-- **30+ 模型窗口表**：covering DeepSeek / 千问 / OpenAI / Anthropic / Google 等
+**跨平台设计**：
+
+- 内置 10 个工具的数据解析器（Claude Code / Codex / DSH / OpenClaw / Cursor 等）
+- 任意 JSONL 格式工具可通过 `config/parsers.json` 注册
+- 7 个 AI 平台可切换（千问 / DeepSeek / OpenRouter / OpenAI / Kimi / 智谱 / 硅基流动）
+- 没配 AI Key 也能用（生成候选包手动处理）
 
 **快速使用**：
 
 ```bash
-node lib/cli.mjs check                          # 检查当前上下文健康度
-node lib/cli.mjs scan                           # 扫描本机所有会话占用
-node lib/cli.mjs estimate "一段文本"             # 估算 token 数
-node lib/cli.mjs check --tokens 95000 --model claude-sonnet-4
+node lib/cli.mjs check            # 检查当前上下文健康度
+node lib/cli.mjs profile          # 生成用户使用画像
+node lib/cli.mjs memory build     # 提炼记忆（自动调 AI）
+node lib/cli.mjs scan             # 扫描本机所有会话占用
 ```
 
 **实测输出**：
 
 ```
 🟠 上下文健康度：警告（78.6%）
-
   [███████████████████████░░░░░░░]
-
-  模型        : qwen3.8-flash
   模型窗口    : 1,000,000 tokens
   当前占用    : 780,000 tokens
-  剩余可用    : 211,808 tokens
 
-建议操作：
-  ! 要求 AI 先做小结再继续
-  ! 把大文件内容挪出对话
+用户使用画像
+■ 模型使用偏好
+  deepseek-flash    100%  ████████████████████
+■ 任务类型分布
+  技能与插件         58.2%  ████████████
+  代码编写          24.1%  █████
+■ 优化建议
+  · 你 100% 的时间用 deepseek-flash。考虑给高价值任务单独配更强的模型。
 ```
 
 详细文档见 [skills/context-guardian/SKILL.md](skills/context-guardian/SKILL.md)。

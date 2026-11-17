@@ -7,12 +7,22 @@
  *   scan      扫描本机所有 AI 工具，列出各会话上下文占用
  *   estimate  估算一段文本的 token 数（不读任何文件）
  *   tools     列出检测到的 AI 工具及其数据目录
+ *   profile   生成用户使用画像（6 个维度）
+ *   memory    从历史会话提炼记忆摘要并落盘
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { estimateTokens, estimateMessages, getWindow, MODEL_WINDOWS } from './estimator.mjs';
 import { analyze, suggest, formatReport, DEFAULT_THRESHOLDS, LEVELS } from './analyzer.mjs';
 import { discover, latestSessions, TOOLS } from './adapters.mjs';
+import { listTools, readToolEvents } from './extract.mjs';
+import { buildProfile, formatProfile } from './profile.mjs';
+import { writeCandidatePack, saveRefinedMemory, readMemory, MEMORY_KINDS } from './memory.mjs';
+import { detectProvider, refine, PROVIDERS } from './refine.mjs';
+
+const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const fmt = (n) => Number(n).toLocaleString('en-US');
 
@@ -249,8 +259,237 @@ function cmdTools() {
   return 0;
 }
 
+// ---------- profile ----------
+function collectEvents(args) {
+  const tools = listTools(SKILL_ROOT).filter((t) => t.detected);
+  if (tools.length === 0) return { events: [], tools: [] };
+  const filtered = args.flags.tool ? tools.filter((t) => t.id === args.flags.tool) : tools;
+  const events = [];
+  for (const t of filtered) {
+    events.push(...readToolEvents(t, {
+      maxFiles: args.flags['max-files'] ? Number(args.flags['max-files']) : 500,
+    }));
+  }
+  return { events, tools: filtered };
+}
+
+function cmdProfile(args) {
+  const { events, tools } = collectEvents(args);
+
+  if (events.length === 0) {
+    console.error('没有读取到任何会话数据。');
+    const detected = listTools(SKILL_ROOT).filter((t) => t.detected);
+    if (detected.length === 0) {
+      console.error('本机未检测到已知 AI 工具的数据目录。');
+      console.error('可在 config/parsers.json 中注册自定义工具路径。');
+    } else {
+      console.error('检测到工具但未读到事件：');
+      for (const t of detected) console.error(`  ${t.label}: ${t.existing.join(', ')}`);
+    }
+    return 2;
+  }
+
+  const profile = buildProfile(events);
+  profile.tools = Object.fromEntries(tools.map((t) => [t.id, t.label]));
+
+  if (args.flags.json) {
+    console.log(JSON.stringify(profile, null, 2));
+    return 0;
+  }
+  console.log(formatProfile(profile));
+  return 0;
+}
+
+// ---------- memory ----------
+function defaultMemoryDir() {
+  return path.join(process.cwd(), 'memory');
+}
+
+async function cmdMemory(args) {
+  const sub = args._[1];
+
+  // ---- show：查看已生成的记忆 ----
+  if (sub === 'show') {
+    const dir = args.flags.dir || defaultMemoryDir();
+    const got = readMemory(dir);
+    if (!got) {
+      console.error(`未找到记忆文件：${path.join(dir, 'summary.md')}`);
+      console.error('先运行: context-guardian memory build');
+      return 2;
+    }
+    console.log(`记忆文件：${got.file}`);
+    console.log(`更新时间：${got.mtime.toLocaleString('zh-CN')}`);
+    console.log('');
+    console.log(got.markdown);
+    return 0;
+  }
+
+  // ---- pack：只生成候选包 ----
+  const { events, tools } = collectEvents(args);
+  if (events.length === 0) {
+    console.error('没有读取到会话数据，无法提炼记忆。');
+    return 2;
+  }
+
+  const dir = args.flags.dir || defaultMemoryDir();
+  const packOpts = {
+    maxPerKind: args.flags.limit ? Number(args.flags.limit) : 15,
+    maxTotal: args.flags.max ? Number(args.flags.max) : 80,
+    recentSessions: args.flags.sessions ? Number(args.flags.sessions) : 20,
+  };
+
+  if (sub === 'pack' || args.flags['pack-only']) {
+    const res = writeCandidatePack(dir, events, packOpts);
+    console.log('候选包已生成（未提炼）');
+    console.log('');
+    console.log(`  文件      : ${res.file}`);
+    console.log(`  大小      : ${(res.bytes / 1024).toFixed(1)} KB`);
+    console.log(`  扫描事件  : ${res.stats.scanned}`);
+    console.log(`  过滤噪声  : ${res.stats.filtered}`);
+    console.log(`  候选项    : ${res.stats.totalCandidates}`);
+    console.log('');
+    console.log('  各类候选：');
+    for (const [k, v] of Object.entries(res.stats.byKind)) {
+      console.log(`    ${k.padEnd(12)} ${v}`);
+    }
+    console.log('');
+    console.log('下一步（任选其一）：');
+    console.log(`  1. 让 AI 阅读该文件并按其「提炼指令」处理，结果用 memory save 保存`);
+    console.log(`  2. 运行 memory build 自动调用 AI 提炼`);
+    return 0;
+  }
+
+  // ---- save：保存 AI 产出 ----
+  if (sub === 'save') {
+    const inFile = args.flags.file;
+    if (!inFile || !fs.existsSync(inFile)) {
+      console.error('请用 --file <路径> 指定 AI 输出的 Markdown 文件');
+      return 2;
+    }
+    const text = fs.readFileSync(inFile, 'utf8');
+    const res = saveRefinedMemory(dir, text, { source: 'manual' });
+    console.log(`记忆已保存：${res.file}（${(res.bytes / 1024).toFixed(1)} KB）`);
+    return 0;
+  }
+
+  // ---- build（默认）：生成候选包 → AI 提炼 → 保存 ----
+  const packRes = writeCandidatePack(dir, events, packOpts);
+
+  // 探测可用的 AI 平台
+  let provider = null;
+  if (!args.flags['no-ai']) {
+    if (args.flags['base-url']) {
+      provider = {
+        provider: 'custom',
+        label: '自定义',
+        baseURL: args.flags['base-url'],
+        apiKey: args.flags.key || '',
+        model: args.flags.model || 'gpt-4o-mini',
+        source: '命令行参数',
+      };
+    } else {
+      provider = detectProvider({
+        searchDirs: [process.cwd(), SKILL_ROOT],
+        model: args.flags.model,
+      });
+      if (provider && args.flags.provider) {
+        // 用户指定了平台但自动探测到了别的
+        const want = PROVIDERS[args.flags.provider];
+        if (want && want.label !== provider.label) {
+          const keys = readEnvForProvider(args.flags.provider);
+          if (keys) {
+            provider = {
+              provider: args.flags.provider,
+              label: want.label,
+              baseURL: baseURLFor(args.flags.provider, keys),
+              apiKey: keys,
+              model: args.flags.model || want.defaultModel,
+              source: '指定平台',
+            };
+          }
+        }
+      }
+    }
+  }
+
+  console.log('记忆提炼');
+  console.log('');
+  console.log(`  候选包      : ${packRes.file}`);
+  console.log(`  扫描事件    : ${packRes.stats.scanned} 条（过滤噪声 ${packRes.stats.filtered}）`);
+  console.log(`  候选项      : ${packRes.stats.totalCandidates} 条`);
+
+  if (!provider) {
+    console.log('');
+    console.log('  未找到可用的 AI 平台，已停在候选包阶段。');
+    console.log('');
+    console.log('  三种后续方式：');
+    console.log('    1. 配一个平台的 Key（DASHSCOPE_API_KEY / DEEPSEEK_API_KEY 等）后重跑');
+    console.log('    2. 让当前 AI 读取候选包并按其中的「提炼指令」处理，');
+    console.log(`       再用 memory save --file <结果文件> 保存`);
+    console.log(`    3. 直接看候选包内容手动整理：${packRes.file}`);
+    return 0;
+  }
+
+  console.log(`  AI 平台     : ${provider.label}（${provider.source}）`);
+  console.log(`  模型        : ${provider.model}`);
+  console.log('');
+  console.log('  正在提炼...');
+
+  let refined;
+  try {
+    const packText = fs.readFileSync(packRes.file, 'utf8');
+    refined = await refine(packText, provider);
+  } catch (e) {
+    console.error(`  提炼失败：${e.message}`);
+    console.error('');
+    console.error(`  候选包已保留：${packRes.file}`);
+    console.error('  可手动交给任意 AI 处理，再用 memory save 保存。');
+    return 1;
+  }
+
+  const sessionIds = new Set(events.map((e) => e.sessionId));
+  const saveRes = saveRefinedMemory(dir, refined.text, {
+    source: `${provider.label} / ${refined.model}`,
+    sessions: sessionIds.size,
+  });
+
+  console.log('  ✓ 完成');
+  console.log('');
+  console.log(`  记忆文件    : ${saveRes.file}`);
+  console.log(`  大小        : ${(saveRes.bytes / 1024).toFixed(1)} KB`);
+  if (refined.usage) {
+    const u = refined.usage;
+    console.log(`  token 消耗  : ${u.prompt_tokens ?? '-'} 入 / ${u.completion_tokens ?? '-'} 出`);
+  }
+  console.log('');
+  console.log('  查看内容：context-guardian memory show');
+  return 0;
+}
+
+/** 读取指定平台的 Key（供 --provider 使用） */
+function readEnvForProvider(id) {
+  const cfg = PROVIDERS[id];
+  if (!cfg) return null;
+  for (const k of cfg.envKeys) {
+    if (process.env[k] && !/your-key|placeholder/i.test(process.env[k])) return process.env[k];
+  }
+  const detected = detectProvider({ searchDirs: [process.cwd(), SKILL_ROOT] });
+  if (detected && detected.provider === id) return detected.apiKey;
+  return null;
+}
+
+/** 根据平台与 Key 解析端点（sk-sp- 走 Token Plan） */
+function baseURLFor(id, apiKey) {
+  const cfg = PROVIDERS[id];
+  if (!cfg) return null;
+  if (id === 'qianwen' && apiKey && apiKey.startsWith('sk-sp-') && cfg.tokenPlanBase) {
+    return cfg.tokenPlanBase;
+  }
+  return cfg.baseURL;
+}
+
 function usage() {
-  console.log(`Context Guardian —— 跨工具上下文健康检查 v1.0.0
+  console.log(`Context Guardian —— 跨工具上下文健康检查 v1.1.0
 
 用法:
   context-guardian <子命令> [参数]
@@ -260,6 +499,9 @@ function usage() {
   scan  [--tool <id>] [--limit N]               扫描本机会话占用
   estimate "<文本>" [--model M]                 估算 token 数
   tools                                          列出支持的工具与窗口表
+  profile [--json] [--tool <id>]                 生成用户使用画像（6 维度）
+  memory build [--dir <路径>] [--dry-run]        提炼记忆摘要并落盘
+  memory show  [--dir <路径>]                    查看已生成的记忆
 
 通用参数:
   --json            输出 JSON
@@ -267,18 +509,20 @@ function usage() {
   --warn-at <0-100>      自定义警告阈值（百分比）
   --danger-at <0-100>    自定义危险阈值（百分比）
   --reserve <n>          为输出预留的 token 数
+  --tool <id>            只处理指定工具
+  --dir <路径>           记忆存储目录（默认 ./memory）
+  --max-files <n>        每个工具最多读取的文件数（默认 500）
 
 示例:
   context-guardian check
-  context-guardian check --tokens 95000 --model claude-sonnet-4
-  context-guardian scan --limit 5
-  context-guardian estimate "这是一段需要估算的中文文本"
-  context-guardian tools
+  context-guardian profile
+  context-guardian memory build
+  context-guardian memory show
 `);
   return 0;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cmd = args._[0];
   if (!cmd || cmd === 'help' || args.flags.help) return usage();
@@ -288,6 +532,8 @@ function main() {
     case 'scan': return cmdScan(args);
     case 'estimate': return cmdEstimate(args);
     case 'tools': return cmdTools();
+    case 'profile': return cmdProfile(args);
+    case 'memory': return await cmdMemory(args);
     default:
       console.error(`未知子命令: ${cmd}\n`);
       usage();
@@ -295,4 +541,10 @@ function main() {
   }
 }
 
-process.exit(main() ?? 0);
+main()
+  .then((code) => process.exit(code ?? 0))
+  .catch((e) => {
+    console.error('致命错误:', e.message);
+    if (process.env.DEBUG) console.error(e.stack);
+    process.exit(1);
+  });
