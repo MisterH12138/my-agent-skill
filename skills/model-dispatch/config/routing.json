@@ -1,0 +1,50 @@
+{
+  "weights": {
+    "capability": 0.40,
+    "cost": 0.25,
+    "context": 0.15,
+    "availability": 0.15,
+    "tier": 0.05,
+    "_note": "能力门槛先筛人，再按成本选优。权重和应为 1.0"
+  },
+  "presets": {
+    "balanced": {
+      "capability": 0.40,
+      "cost": 0.25,
+      "context": 0.15,
+      "availability": 0.15,
+      "tier": 0.05
+    },
+    "cheapest": {
+      "capability": 0.25,
+      "cost": 0.50,
+      "context": 0.10,
+      "availability": 0.10,
+      "tier": 0.05
+    },
+    "best-quality": {
+      "capability": 0.60,
+      "cost": 0.10,
+      "context": 0.12,
+      "availability": 0.08,
+      "tier": 0.10
+    },
+    "long-context": {
+      "capability": 0.30,
+      "cost": 0.15,
+      "context": 0.40,
+      "availability": 0.10,
+      "tier": 0.05
+    }
+  },
+  "defaultPreset": "balanced",
+  "options": {
+    "respectBalance": true,
+    "fallbackDepth": 3,
+    "defaultEstOutputTokens": 1000,
+    "usdToCny": 7.1,
+    "enforceCapabilityFloor": true,
+    "minTierRatio": 1.0,
+    "_note": "enforceCapabilityFloor=true 时按任务类型强制最低能力档位，确保能力不打折扣"
+  }
+}

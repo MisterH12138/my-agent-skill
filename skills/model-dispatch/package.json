@@ -1,0 +1,35 @@
+{
+  "name": "@dsh-skills/model-dispatch",
+  "version": "1.1.0",
+  "description": "多平台智能模型调度：按任务类型、上下文长度、平台余额与免费额度自动选择最优模型并调用。支持千问/DeepSeek/OpenRouter 及任意 OpenAI 兼容平台。",
+  "type": "module",
+  "bin": {
+    "model-dispatch": "lib/cli.mjs"
+  },
+  "files": [
+    "SKILL.md",
+    "lib/",
+    "config/",
+    "references/",
+    "scripts/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agent-skills",
+    "skill",
+    "llm",
+    "model-routing",
+    "qianwen",
+    "deepseek",
+    "openrouter",
+    "ai"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "skill": {
+    "name": "model-dispatch",
+    "entry": "SKILL.md"
+  }
+}
