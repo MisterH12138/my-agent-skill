@@ -10,6 +10,7 @@
 |---|---|---|
 | [model-dispatch](skills/model-dispatch/) | 1.1.0 | 跨平台智能模型调度：按任务类型、上下文长度、平台余额与免费额度，自动选最省且不降能力的模型并直接调用 |
 | [context-guardian](skills/context-guardian/) | 1.1.0 | 跨工具上下文健康检查 + 用户画像 + AI 记忆提炼 |
+| [keykeeper](skills/keykeeper/) | 1.0.0 | 跨平台 API Key 池管理：多 Key 轮询、健康检查、端点自动推断 |
 
 ---
 
@@ -97,10 +98,14 @@ my-agent-skill/
 │   │   ├── lib/           # 调度引擎与平台适配器
 │   │   ├── config/        # 配置
 │   │   └── scripts/       # 安装器
-│   └── context-guardian/  # 上下文健康检查
+│   ├── context-guardian/  # 上下文健康检查
+│   │   ├── SKILL.md
+│   │   ├── lib/           # 估算器、分析器、画像、记忆
+│   │   └── config/
+│   └── keykeeper/         # API Key 池管理
 │       ├── SKILL.md
-│       ├── lib/           # 估算器、分析器、工具适配层
-│       └── scripts/
+│       ├── lib/           # 密钥池、平台定义
+│       └── config/
 └── dist/                  # 发布产物（zip 包）
 ```
 
@@ -153,6 +158,51 @@ node lib/cli.mjs scan             # 扫描本机所有会话占用
 ```
 
 详细文档见 [skills/context-guardian/SKILL.md](skills/context-guardian/SKILL.md)。
+
+---
+
+## keykeeper
+
+> 让你的多个 API Key 自己管好自己——失效自动跳过、端点自动选对、状态一目了然。
+
+**解决的问题**：
+
+- 某个 Key 失效了 → 程序报错中断？现在会自动跳过。
+- `sk-sp-` 开头的千问 Key 报 401 → 实际是**端点选错了**，不是 Key 坏了。
+- 配了多个 Key → 手动管理太麻烦。
+
+**核心特性**：
+
+| 特性 | 说明 |
+|---|---|
+| **端点自动推断** | 按 Key 前缀选对端点（`sk-sp-` → Token Plan 专属端点，避免 401） |
+| **多 Key 池** | `KEY_NAME_1` / `KEY_NAME_2` 后缀即可配置多个，自动去重 |
+| **健康检查** | 逐个测试 Key，标记可用 / 无效 / 限流 |
+| **失效跳过** | `pick` 自动跳过标记为无效的 Key |
+| **状态持久化** | 检测结果存 `~/.keykeeper/state.json`（只存指纹，不含明文） |
+
+**支持平台**：千问、DeepSeek、OpenRouter、OpenAI、Kimi、智谱、硅基流动、MiniMax、Ollama（9 个）+ 任意 OpenAI 兼容端点。
+
+**快速使用**：
+
+```bash
+keykeeper status              # 查看 Key 池状态（不联网）
+keykeeper test                # 测试所有 Key（联网）
+keykeeper endpoint qianwen    # 看各 Key 会用哪个端点
+keykeeper pick qianwen        # 取一个可用 Key
+```
+
+**实测输出**：
+
+```
+千问 / 阿里云 DashScope
+  🟢 sk-sp-…NOcw (115 字符)   可用      279ms  可用
+  🔴 sk-inv…0000 (34 字符)    无效      158ms  Key 无效或权限不足 (HTTP 401)
+
+结果：1/2 可用
+```
+
+详细文档见 [skills/keykeeper/SKILL.md](skills/keykeeper/SKILL.md)。
 
 ---
 

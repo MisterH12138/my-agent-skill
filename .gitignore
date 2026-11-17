@@ -1,5 +1,4 @@
-# 密钥与凭据 —— 绝对不能提交
-.env
+# 鐎靛棝鎸滄稉搴″殶閹?閳ユ柡鈧?缂佹繂顕稉宥堝厴閹绘劒姘?.env
 .env.*
 !.env.example
 *.key
@@ -7,26 +6,26 @@
 credentials.json
 *credentials*
 
-# 运行时产物
-node_modules/
+# 鏉╂劘顢戦弮鏈甸獓閻?node_modules/
 output/
 *.log
 npm-debug.log*
 .pnpm-store/
 
-# 系统文件
+# 缁崵绮洪弬鍥︽
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 编辑器
-.vscode/
+# 缂傛牞绶崳?.vscode/
 .idea/
 *.swp
 *.swo
 
-# 测试与临时
-_test/
+# 濞村鐦稉搴濆閺?_test/
 _temp/
 _verify*/
 coverage/
+
+# keykeeper 鐨勬樉寮?Key 閰嶇疆锛堝彲鑳藉惈鐪熷疄 Key锛?skills/keykeeper/config/keys.json
+!skills/keykeeper/config/keys.example.json

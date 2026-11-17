@@ -1,0 +1,31 @@
+{
+  "name": "@dsh-skills/keykeeper",
+  "version": "1.0.0",
+  "description": "跨平台 API Key 池管理：多 Key 轮询、健康检查、端点自动推断。默认跨平台，遵循 Agent Skills 开放规范。",
+  "type": "module",
+  "bin": {
+    "keykeeper": "lib/cli.mjs"
+  },
+  "files": [
+    "SKILL.md",
+    "lib/",
+    "config/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "agent-skills",
+    "skill",
+    "api-key",
+    "key-management",
+    "llm",
+    "openai-compatible"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "skill": {
+    "name": "keykeeper",
+    "entry": "SKILL.md"
+  }
+}
