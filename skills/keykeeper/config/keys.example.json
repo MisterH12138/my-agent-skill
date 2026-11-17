@@ -1,13 +1,12 @@
 {
   "_comment": "自定义平台/Key 配置。已配好的 Key 会与 .env 和系统环境变量合并。",
-  "_comment_security": "⚠️ 如果填了真实 Key，请确保此文件不被提交（.gitignore 已排除 keys.json）。",
+  "_comment_security": "如果填了真实 Key，请确保此文件不被提交（.gitignore 已排除 keys.json）。",
+  "_comment_usage": "把本文件复制为 keys.json 后填写，或在 .env 里用 KEY_NAME_1、KEY_NAME_2 配置多 Key。",
   "providers": {
     "_example": {
-      "comment": "示例：在某平台下填 Key 数组可强制指定",
-      "qianwen": [
-        "sk-xxxxxxxxxxxxxxxxxxxx",
-        "sk-sp-xxxxxxxxxxxxxxxx"
-      ]
+      "_note": "示例格式：平台 ID → Key 数组",
+      "qianwen": [],
+      "deepseek": []
     }
   }
 }
